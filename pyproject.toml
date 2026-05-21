@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "printed-spring"
+version = "0.1.0"
+description = "Parametric 3D-printable spring in build123d"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Paul Fremantle", email = "pzfreo@gmail.com" }]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "build123d>=0.10,<0.11",
+    "build123d-drafting-helpers>=0.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spring"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7",
+    "pytest-timeout",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 120
