@@ -37,14 +37,22 @@ def _scale_to_m(shape):
     return shape.Scale(gp_Pnt(0.0, 0.0, 0.0), 1.0e-3)
 
 
-def _tag_clamp_face(shape, rim_drop_mm: float, D_out_mm: float, D_rim_in_mm: float):
-    """Name the bottom annular face of the rim boss 'clamp'.
+def _tag_clamp_face(shape, p):
+    """Name the rim's outer annular face 'clamp'.
 
-    The face is planar at z = -rim_drop and is the only such face whose
-    centroid lies on the axis (proof-mass bottom is at z = -hub_drop, so it
-    won't collide).
+    For the original symmetric design (rim_drop > 0), the clamp face is the
+    bottom annular face at z = -rim_drop. For the support-free design
+    (rim_drop = 0, rim_rise > 0), it's the top annular face at z = plate_t +
+    rim_rise. Both are annular planar faces whose centroid sits on the axis.
     """
-    z_target = -rim_drop_mm * 1e-3
+    if p.rim_drop > 0:
+        z_target = -p.rim_drop * 1e-3
+    elif p.rim_rise > 0:
+        z_target = (p.plate_t + p.rim_rise) * 1e-3
+    else:
+        raise RuntimeError(
+            "no rim_drop or rim_rise — no rigid clamp surface to tag"
+        )
     tagged = 0
     for f in shape.faces:
         c = f.center
@@ -68,7 +76,7 @@ def load_geometry_si(brep_path: Path, p: SpringParams):
     """Load a BREP, scale to metres, tag the clamp face. Returns OCCGeometry."""
     raw = OCCGeometry(str(brep_path))
     shape_m = _scale_to_m(raw.shape)
-    _tag_clamp_face(shape_m, p.rim_drop, p.D_out, p.D_rim_in)
+    _tag_clamp_face(shape_m, p)
     return OCCGeometry(shape_m)
 
 
@@ -115,8 +123,15 @@ def classify_modes(fes, uvecs, lams, p: SpringParams):
     axis (x, y, z) it most resembles.
     """
     mesh = fes.mesh
-    hub_z_m = -(p.hub_drop / 2.0) * 1e-3  # mid-height of proof mass
-    probe = mesh(0.0, 0.0, hub_z_m)
+    # Probe the centre of the solid PLA gap between the two insert pockets
+    # (or just mid-plate if there are no pockets).
+    if p.insert_depth > 0:
+        top_of_bottom_pocket = -p.hub_drop + p.insert_depth
+        bot_of_top_pocket = p.plate_t + p.hub_rise - p.insert_depth
+        probe_z_mm = 0.5 * (top_of_bottom_pocket + bot_of_top_pocket)
+    else:
+        probe_z_mm = p.plate_t / 2.0
+    probe = mesh(0.0, 0.0, probe_z_mm * 1e-3)
     gfu = ngs.GridFunction(fes)
     out = []
     for k, lam in enumerate(lams):
