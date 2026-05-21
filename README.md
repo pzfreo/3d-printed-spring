@@ -4,6 +4,12 @@ An **orthoplanar spring with an isotropic resonant frequency**, designed in [bui
 
 ![Isometric render of the spring](docs/spring_iso.png)
 
+> **How this was made.** The geometry, the FEA validation pipeline, the parameter sweep, this README and `DESIGN.md` were all generated in a single Claude Code session driven only by [build123d-mcp](https://pypi.org/project/build123d-mcp/) from this one prompt:
+>
+> > make an orthoplanar spring with an isotropic resonant frequency in PLA, and to validate it in netgen ( reading the comments in https://github.com/gumyr/build123d/issues/297 for netgen help)
+>
+> No human-written CAD or FEA code. The full session is reproducible by re-running the published [build123d-mcp](https://pypi.org/project/build123d-mcp/) server against the same prompt.
+
 ## In plain English
 
 Picture a flat disc the size of a £2 coin: a thick outer ring, a heavy little post in the middle, and three thin wiggly arms in the gap connecting them. The outer ring is what you'd clamp down, and the central post is a small proof mass. Flick the centre in any direction and it bounces back and forth on the arms like a mass on a spring. Different springs prefer to bounce in different directions — a typical flat spring is happy to bobble up and down but feels rigid edge-on. The goal here was a spring that feels **equally bouncy in all three directions** — up/down, left/right, front/back — so a tap produces essentially the same little hum whichever way you push the proof mass. That property is what "isotropic resonant frequency" means.
