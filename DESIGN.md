@@ -210,3 +210,112 @@ arm's z direction (the 2.7 mm dimension) is across the printer's build
 layers. The out-of-plane bending mode (mode 1) then stresses the arms
 *along* the layers, which is the strong direction of FDM PLA. Printing
 on edge would put layer-adhesion in the failure path of the dominant mode.
+
+## 8. Long-ring variants
+
+The 33 Hz reference design *rings* for a brief 0.3–1 s depending on the
+clamp. For applications where you want a longer-ringing resonator — felt
+as a slow visible wobble rather than a quick buzz — you want **low
+frequency**, since the perceptible ring duration scales as `3 · Q / (π·f)`.
+
+Empirically measured Q for the printed 33 Hz spring:
+
+| Mount | Perceptible ring | Implied Q |
+|---|---|---|
+| Hand-held rim | ~1 s | ~35 |
+| Rim pressed firmly against a fixed surface | ~2 s | ~70 |
+
+PLA's intrinsic Q is the dominant loss. Material upgrades give modest
+gains (PETG ~+30 %, polycarbonate ~+200 %), but the easiest knob is **f
+itself**. The two new presets below preserve the isotropic arm topology
+of section 3 but redesign the proof-mass + clamp geometry so the user
+can attach external mass via M6 heat-set inserts, dragging f down into
+the 5–15 Hz range.
+
+### `big_ring_params()` — symmetric, needs supports
+
+The 80 mm-OD scale-up. Slim, *tall* hub (14 mm diameter, 20.7 mm long)
+centred on the plate plane: hub_rise = hub_drop = 9 mm. Two M6 pockets
+(8.0 mm × 8.0 mm deep) at each end of the hub, drilled in opposite
+directions. Slim hub keeps the PLA proof mass tiny (~3 g) so 20–30 g of
+user-added steel dominates the modal mass.
+
+FEA result with no external mass:
+
+| mode | f (Hz) | axis |
+|:--:|:--:|---|
+| 1 | 28.4 | z |
+| 2 | 29.0 | x |
+| 3 | 29.0 | y |
+
+Isotropy ratio: **f_xy / f_z = 1.020** (2 % off).
+
+Projected with 25 g external mass: f ≈ 9.4 Hz, perceptible ring ≈ 5.1 s
+(Q=50). At Q=70: ≈ 7.1 s.
+
+**Print caveat:** because the hub extends both sides of the plate, the
+plate has to bridge across either the hub-rise *or* the hub-drop in mid
+air. Supports are required under one of the two hub bosses no matter
+which orientation you choose.
+
+### `big_ring_support_free_params()` — single-sided hub, prints flat
+
+Everything above the plate plane. `hub_drop = 0`, `rim_drop = 0`. Both
+the clamp boss (`rim_rise = 6 mm`) and the proof-mass column
+(`hub_rise = 18 mm`) sit on top of the plate. The plate itself is the
+bottom face of the part and lies flat on the bed during printing.
+
+The two M6 pockets are in the same upward hub column, drilled from
+opposite ends: the top pocket from the top face downward, the bottom
+pocket from the *plate's underside* upward into the base of the hub
+(the slicer simply leaves a small 8 mm hole in the first layer at the
+hub centre — the pocket is just a vertical cylinder going up). 4.7 mm
+of solid PLA isolates the two pockets.
+
+This makes the proof mass asymmetric about the plate plane (its CoM
+sits ~10 mm above the plate, not at it), which couples a small amount
+of lateral push into rocking. In practice the rocking modes are at
+~80 Hz — much higher than the loaded ~10 Hz translation — so the
+coupling is weak.
+
+FEA result with no external mass:
+
+| mode | f (Hz) | axis |
+|:--:|:--:|---|
+| 1 | 26.9 | x |
+| 2 | 26.9 | y |
+| 3 | 28.2 | z |
+
+Isotropy ratio: **f_xy / f_z = 0.954** (4.6 % off — slightly *softer*
+in plane than out of plane, the opposite tilt from the symmetric
+version).
+
+Projected with 25 g external mass: f ≈ 8.9 Hz, perceptible ring ≈ 5.4 s
+(Q=50). At Q=70: **7.5 s**. With 30 g: 5.8 s / 8.2 s respectively.
+
+### Effective-mass approximation
+
+The post-FEA scaling `f_loaded = f_PLA · √(m_hub_PLA / (m_hub_PLA + m_ext))`
+treats the hub as a rigid proof mass. This is a rigid-body approximation:
+it assumes the hub moves coherently while the arms flex, and that the
+arms' own kinetic energy is negligible. For these designs the proof mass
+dominates (the arms together weigh ~1 g), so the approximation should be
+accurate to a few percent. If you want a stricter prediction, model the
+external mass as a denser cylinder inside the FEA — the NGSolve setup
+allows region-dependent mass density via a piecewise `CoefficientFunction`.
+
+### Heat-set insert sizing
+
+The 8.0 mm × 8.0 mm pockets are sized for **thermal install** with most
+M6 heat-set inserts: the soldering iron heats the brass, the PLA melts
+around the knurling, and the displaced material locks the insert in
+place. Tolerances by brand:
+
+| Brand / spec | Pocket vs. insert |
+|---|---|
+| Ruthex M6 (8.1 mm OD × 8.1 mm long) | 0.1 mm tight — fine via thermal install, insert sits ~0.1 mm proud |
+| Voron-spec M6 (8.0 × 8.0) | Exact match |
+| Generic brass knurled M6 (7.5–8.0 mm, 7–10 mm long) | Diameter fine; ≤8 mm long fits, longer needs depth bump |
+
+For inserts ≥9 mm long, raise `insert_depth` to 10 mm and `hub_rise` to
+20 mm to preserve the 4.7 mm solid-PLA gap between the two pockets.

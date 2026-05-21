@@ -32,13 +32,99 @@ class SpringParams:
     N_arms: int = 3
     arm_sweep_deg: float = 220.0
     rim_drop: float = 6.0     # depth of clamp boss below plate (mm)
+    rim_rise: float = 0.0     # height of clamp boss above plate (mm)
     hub_drop: float = 12.0    # depth of proof-mass below plate (mm)
+    hub_rise: float = 0.0     # height of proof-mass above plate (mm); 0 = no upper boss
     # Sinusoidal radial wiggle in the arm path. Lengthens the arm path so
     # bending dominates the in-plane stiffness (axial-stretch contribution
     # is what makes a naive square-section orthoplanar spring lateral-stiff).
     # Tapered by sin(πt) so the arm still meets hub/rim radially.
     wiggle_amp: float = 4.0   # radial amplitude (mm)
     wiggle_lobes: int = 4     # number of lobes along the arm
+    # Optional heat-set insert pockets at the top and bottom of the hub.
+    # Set insert_depth > 0 to subtract two coaxial cylinders. The default
+    # 8.0 mm hole fits a standard M6 heat-set insert (e.g. Ruthex M6).
+    insert_d: float = 8.0
+    insert_depth: float = 0.0  # 0 = no pockets
+
+
+def big_ring_support_free_params(
+    D_out: float = 80.0, wiggle_amp: float = 6.0
+) -> "SpringParams":
+    """Support-free long-ringing variant.
+
+    All features above the plate plane — the plate sits flat on the bed and
+    everything extrudes straight up, no overhangs, no supports.
+
+    The hub is a single tall column above the plate (~21 mm). Two M6
+    heat-set inserts press into the same column from opposite ends:
+        - top pocket: drilled from the top face of the hub
+        - bottom pocket: drilled from the plate's underside, going up into
+          the base of the hub (the slicer just leaves a small first-layer
+          hole at the hub centre)
+
+    The clamp uses a rim_rise (above the plate) instead of a rim_drop, so
+    the user clamps the rim from above or grips the rim from the side.
+
+    Mild physics cost: the PLA proof mass is now asymmetric about the plate
+    plane (CoM offset above by ~10 mm), so lateral pushes couple a tiny
+    amount into rocking. At ~10 Hz this is well below the ~80 Hz rocking
+    modes so the coupling is small. If you bolt heavier mass on the bottom
+    than the top, the combined CoM moves back toward the plate plane.
+    """
+    return SpringParams(
+        D_out=D_out,
+        D_rim_in=D_out - 10.0,
+        D_hub=14.0,
+        plate_t=2.7,
+        arm_w=1.0,
+        N_arms=3,
+        arm_sweep_deg=220.0,
+        wiggle_amp=wiggle_amp,
+        wiggle_lobes=4,
+        rim_drop=0.0,           # nothing below the plate
+        rim_rise=6.0,           # clamp boss now sits above
+        hub_drop=0.0,
+        hub_rise=18.0,          # single tall hub; both M6 inserts fit
+        insert_d=8.0,
+        insert_depth=8.0,
+    )
+
+
+def big_ring_params(D_out: float = 80.0, wiggle_amp: float = 6.0) -> "SpringParams":
+    """Preset for a long-ringing spring with M6 heat-set inserts both sides.
+
+    Slim, tall hub keeps the PLA proof mass small (~3 g) so user-added
+    steel/brass masses (10-15 g each side) dominate. Larger outer rim
+    (default 80 mm OD) gives a softer spring than the 33 Hz design,
+    pushing the loaded resonant frequency below 10 Hz and the perceptible
+    ring time toward 5 s at Q≈50. Same arm cross-section and wiggle topology
+    as the isotropic 33 Hz design so f_xy/f_z stays near 1.
+
+    Args:
+        D_out: outer diameter in mm. Default 80 mm; raise toward 100 mm for
+               an even softer spring (lower f, longer ring).
+        wiggle_amp: radial wiggle amplitude in mm. Default 6 mm — scaled
+               from the 33 Hz design (4 mm) by the larger radial gap.
+    """
+    # Scale only the outer/rim dimensions; the hub stays slim to keep PLA
+    # proof mass small. Arm cross-section unchanged so isotropy tuning carries.
+    return SpringParams(
+        D_out=D_out,
+        D_rim_in=D_out - 10.0,
+        D_hub=14.0,           # 3 mm wall around an 8 mm M6 insert
+        plate_t=2.7,
+        arm_w=1.0,
+        N_arms=3,
+        arm_sweep_deg=220.0,
+        wiggle_amp=wiggle_amp,
+        wiggle_lobes=4,
+        rim_drop=6.0,
+        hub_drop=9.0,
+        hub_rise=9.0,
+        insert_d=8.0,
+        insert_depth=8.0,
+    )
 
 
 def _arm_face(start_angle_rad: float, p: SpringParams, n_pts: int = 80):
@@ -70,7 +156,27 @@ def build_spring(p: SpringParams = SpringParams()):
     for k in range(p.N_arms):
         plane_face = plane_face + _arm_face(k * 2 * np.pi / p.N_arms, p)
 
-    plate = extrude(plane_face, amount=p.plate_t)
-    clamp_boss = Pos(0, 0, -p.rim_drop) * extrude(rim_face, amount=p.rim_drop)
-    mass_boss = Pos(0, 0, -p.hub_drop) * extrude(hub_face, amount=p.hub_drop)
-    return plate + clamp_boss + mass_boss
+    part = extrude(plane_face, amount=p.plate_t)
+    if p.rim_drop > 0:
+        part = part + Pos(0, 0, -p.rim_drop) * extrude(rim_face, amount=p.rim_drop)
+    if p.rim_rise > 0:
+        part = part + Pos(0, 0, p.plate_t) * extrude(rim_face, amount=p.rim_rise)
+    if p.hub_drop > 0:
+        part = part + Pos(0, 0, -p.hub_drop) * extrude(hub_face, amount=p.hub_drop)
+    if p.hub_rise > 0:
+        part = part + Pos(0, 0, p.plate_t) * extrude(hub_face, amount=p.hub_rise)
+
+    if p.insert_depth > 0:
+        insert_face = Circle(p.insert_d / 2)
+        # Top pocket: drilled into the top face of the hub_rise (or plate if no rise)
+        top_z = p.plate_t + p.hub_rise
+        part = part - Pos(0, 0, top_z - p.insert_depth) * extrude(
+            insert_face, amount=p.insert_depth
+        )
+        # Bottom pocket: drilled into the bottom face of the hub_drop (or plate if no drop)
+        bot_z = -p.hub_drop
+        part = part - Pos(0, 0, bot_z) * extrude(
+            insert_face, amount=p.insert_depth
+        )
+
+    return part

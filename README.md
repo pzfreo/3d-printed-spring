@@ -31,6 +31,27 @@ Making it work meant fighting against the natural anisotropy of a flat spring. F
 
 See [`DESIGN.md`](DESIGN.md) for the engineering writeup — why orthoplanar springs are naturally anisotropic, the two knobs that fix it, the FEA workflow, and the parameter-sweep that landed on these numbers.
 
+## Variants
+
+Three presets are exposed in `spring.spring`. Same arm topology and isotropic tuning across all three — the differences are only in the rim/hub geometry and proof-mass strategy.
+
+| Preset | Application | OD | Notes |
+|---|---|---|---|
+| `SpringParams()` (default) | Isotropic ~33 Hz reference design | 60 mm | Original "buzz once" demo, ~0.3–1 s perceptible ring. Hub hangs below the plate as integral proof mass. |
+| `big_ring_params()` | Long ring time, symmetric proof mass | 80 mm | Hub extends *both sides* of the plate with M6 heat-set pockets on top and bottom. Best CoM symmetry → cleanest 3-axis isotropy, but **needs supports** on one hub side when printing. |
+| `big_ring_support_free_params()` | Long ring time, no supports | 80 mm | Hub extends only *above* the plate (single tall column). M6 pockets in the same hub — top one drilled from above, bottom one drilled into the plate's underside. Prints flat with **no supports**. Mild asymmetry in proof mass; isotropy still ≤5 %. |
+
+![Support-free variant](docs/big_ring_support_free_iso.png)
+
+**Ring time tuning** (perceptible ring duration ≈ `3 Q / (π f)`):
+
+Measured for the original 33 Hz spring: Q ≈ 35 hand-held, Q ≈ 70 when the rim is rigidly clamped. To extend the ring, drop f by adding external mass to the hub via the M6 inserts. With the support-free 80 mm variant + ~25 g total external mass (12–13 g per side):
+
+| Q | Loaded f | Perceptible ring (3 τ) |
+|---|---|---|
+| 50 (typical hand-clamp) | ~8.9 Hz | ~5.4 s |
+| 70 (rigid clamp) | ~8.9 Hz | ~7.5 s |
+
 ## Print assumptions
 
 - **Material:** PLA, FDM (E ≈ 2.5 GPa assumed for FEA — anisotropic in real prints, so the *absolute* frequency will shift ±15 % from layer effects; the *isotropy ratio* is geometric and unaffected).
